@@ -24,7 +24,7 @@ class MenuBar(bpy.types.Menu):
         layout = self.layout
         layout.operator("ntb.print_hello", text="Say Hello", icon='TEXT')
         layout.operator("ntb.reload_scripts", text="Reload Scripts", icon='TEXT')
-        layout.operator("ntb.export_unreal", text="Export Unreal", icon='TEXT')
+        layout.operator("ntb.unreal_export_all_meshes_separately", text="Export Unreal", icon='TEXT')
         
 
 def draw_menu_button(self, context):

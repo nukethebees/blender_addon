@@ -18,7 +18,7 @@ if "bpy" in locals():
 
 classes_to_register = (
     operators.PrintHelloOperator,
-    operators.ExportUnrealOperator,
+    operators.UnrealExportAllMeshesOperator,
     operators.ReloadScriptsOperator,
     panels.NPanel,
     panels.MenuBar
