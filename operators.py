@@ -25,12 +25,30 @@ def get_export_dir() -> str:
     os.makedirs(blend_dir, exist_ok=True)
     return blend_dir
 
+def make_fbx_name(x:str) -> str:
+    return f"SM_{x}.fbx"
+
 def make_combined_sm_name() -> str:
     blend_name = Path(bpy.data.filepath).stem
-    return f"SM_{blend_name}.fbx"
+    return make_fbx_name(blend_name)
 
 def get_all_meshes(context: bpy.types.Context) -> list[bpy.types.Object]:
     return [obj for obj in context.scene.objects if obj.type == 'MESH']
+
+def unselect_all() -> None:
+    bpy.ops.object.select_all(action='DESELECT')
+
+def select_all_meshes_only(context: bpy.types.Context
+                           ) -> list[bpy.types.Object]:
+    unselect_all()
+    mesh_objects = get_all_meshes(context)
+    for obj in mesh_objects:
+        obj.select_set(True)
+    return mesh_objects
+
+def select_only(obj: bpy.types.Object) -> None:
+    unselect_all()
+    obj.select_set(True)
 
 class UnrealExportAllMeshesSeparatelyOperator(bpy.types.Operator):
     bl_idname = "ntb.unreal_export_all_meshes_separately"
@@ -87,4 +105,56 @@ class UnrealExportAllMeshesAsOneOperator(bpy.types.Operator):
         )
 
         self.report({'INFO'}, f"Exported {len(context.selected_objects)} objects to FBX")
+        return {'FINISHED'}
+    
+class UnrealExportMeshesOperator(bpy.types.Operator):
+    bl_idname = "ntb.unreal_export_meshes"
+    bl_label = "Unreal Export Meshes"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    class Settings(bpy.types.PropertyGroup):
+        mesh_mode: bpy.props.EnumProperty(
+            name="Mesh Mode",
+            description="Mesh combining mode",
+            items=[
+                ('Combine', "Combine", "Combine meshes as one"),
+                ('Separate', "Separate", "Export meshes separately"),
+            ],
+            default='Combine'
+        ) # type: ignore
+
+    def execute(self, context: bpy.types.Context):
+        props: UnrealExportMeshesOperator.Settings = context.scene.unreal_export_meshes_settings
+        folder = get_export_dir()
+
+        def get_file_path(file_name:str) -> str:
+            return os.path.join(folder, file_name)
+        def run_fbx_export(file_path: str):
+            bpy.ops.export_scene.fbx(
+                filepath=file_path,
+                apply_unit_scale=True,
+                object_types={'MESH'},
+                axis_forward='X',
+                axis_up='Z',
+                mesh_smooth_type='SMOOTH_GROUP'
+            )
+       
+        def export_mesh_to_fbx(name:str) -> None:
+            file_name = make_fbx_name(name)
+            file_path = get_file_path(file_name)
+            run_fbx_export(file_path)
+
+        if (props.mesh_mode == "Combine"): 
+            select_all_meshes_only(context)
+            export_mesh_to_fbx(Path(bpy.data.filepath).stem)
+            self.report({'INFO'}, f"Exported to FBX")
+        else:
+            n_exported = 0
+            for obj in get_all_meshes(context):
+                select_only(obj)
+                export_mesh_to_fbx(obj.name)
+                n_exported += 1
+
+            self.report({'INFO'}, f"Exported {n_exported} objects to FBX")
+        unselect_all()
         return {'FINISHED'}

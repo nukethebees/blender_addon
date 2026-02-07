@@ -9,13 +9,13 @@ bl_info = {
     "category": "Object",
 }
 
-from . import operators
+from . import operators as ops
 from . import panels
 from . import registration
 from . import key_mapping
 
 modules: tuple[ModuleType] = (
-    operators, 
+    ops, 
     panels, 
     registration,
     key_mapping,
@@ -26,10 +26,12 @@ if "bpy" in locals():
         importlib.reload(m)
 
 classes_to_register = (
-    operators.PrintHelloOperator,
-    operators.UnrealExportAllMeshesSeparatelyOperator,
-    operators.UnrealExportAllMeshesAsOneOperator,
-    operators.ReloadScriptsOperator,
+    ops.PrintHelloOperator,
+    ops.UnrealExportAllMeshesSeparatelyOperator,
+    ops.UnrealExportAllMeshesAsOneOperator,
+    ops.UnrealExportMeshesOperator,
+    ops.UnrealExportMeshesOperator.Settings,
+    ops.ReloadScriptsOperator,
     panels.NPanel,
     panels.MenuBar
 )
@@ -50,6 +52,9 @@ def register():
         bpy.types.TOPBAR_MT_editor_menus.append(m)
 
     key_mapping.register_keys()
+
+    bpy.types.Scene.unreal_export_meshes_settings = \
+        bpy.props.PointerProperty(type=ops.UnrealExportMeshesOperator.Settings)
     
 def unregister():
     print(f"Unloading module: {bl_info['name']}")
@@ -63,6 +68,8 @@ def unregister():
         bpy.types.TOPBAR_MT_editor_menus.remove(m)
 
     key_mapping.unregister_keys()
+
+    del bpy.types.Scene.unreal_export_meshes_settings
 
 if __name__ == "__main__":
     register()
