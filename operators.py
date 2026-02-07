@@ -28,8 +28,6 @@ class UnrealExportAllMeshesSeparatelyOperator(bpy.types.Operator):
     bl_idname = "ntb.unreal_export_all_meshes_separately"
     bl_label = "Unreal Export All Meshes Separately"
 
-    filepath: bpy.props.StringProperty(subtype="FILE_PATH")
-
     def execute(self, context):       
         folder = get_export_dir()
 
