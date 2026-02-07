@@ -16,6 +16,7 @@ if "bpy" in locals():
 
 classes_to_register = (
     operators.PrintHelloOperator,
+    operators.ExportUnrealOperator,
     panels.NPanel,
     panels.MenuBar
 )
