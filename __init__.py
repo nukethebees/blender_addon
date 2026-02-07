@@ -10,9 +10,11 @@ bl_info = {
 from . import operators
 from . import panels
 
+modules = (operators, panels)
+
 if "bpy" in locals():
-    importlib.reload(operators)
-    importlib.reload(panels)
+    for m in modules:
+        importlib.reload(m)
 
 classes_to_register = (
     operators.PrintHelloOperator,
