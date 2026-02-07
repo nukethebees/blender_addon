@@ -1,4 +1,7 @@
+from dataclasses import dataclass
 import importlib
+from types import ModuleType
+
 import bpy
 
 bl_info = {
@@ -9,8 +12,13 @@ bl_info = {
 
 from . import operators
 from . import panels
+from . import registration
 
-modules = (operators, panels)
+modules: tuple[ModuleType] = (
+    operators, 
+    panels, 
+    registration,
+)
 
 if "bpy" in locals():
     for m in modules:
@@ -18,7 +26,7 @@ if "bpy" in locals():
 
 classes_to_register = (
     operators.PrintHelloOperator,
-    operators.UnrealExportAllMeshesOperator,
+    operators.UnrealExportAllMeshesSeparatelyOperator,
     operators.ReloadScriptsOperator,
     panels.NPanel,
     panels.MenuBar
@@ -28,8 +36,13 @@ top_bar_menus = (
     panels.draw_menu_button,
 )
 
-old_keys = []
-addon_keymap = []
+@dataclass
+class KeyDef:
+    map: bpy.types.KeyMap
+    item: bpy.types.KeyMapItem
+
+old_keys: list[bpy.types.KeyMapItem] = []
+addon_keymap: list[KeyDef] = []
 
 def register_keys():
     global old_keys, addon_keymap
@@ -42,15 +55,15 @@ def register_keys():
     old_keys = [kmi for kmi in km.keymap_items if kmi.type == 'F5']
     
     kmi = km.keymap_items.new('ntb.reload_scripts', 'F5', 'PRESS')
-    addon_keymap.append((km, kmi))
+    addon_keymap.append(KeyDef(km, kmi))
 
 def unregister_keys():
     global old_keys, addon_keymap
 
     print("Unregistering keys")    
 
-    for km, kmi in addon_keymap:
-        km.keymap_items.remove(kmi)
+    for key_def in addon_keymap:
+        key_def.map.keymap_items.remove(key_def.item)
     addon_keymap.clear()
 
     for kmi in old_keys:

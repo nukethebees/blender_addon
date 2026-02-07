@@ -1,6 +1,7 @@
 import bpy
 
-from . import operators
+from . import operators as ops
+from . import registration
 
 class NPanel(bpy.types.Panel):
     """
@@ -12,20 +13,20 @@ class NPanel(bpy.types.Panel):
     bl_region_type = 'UI'
     bl_category = 'NukeTheBees'
 
-    def draw(self, context):
-        layout = self.layout
-        layout.operator("ntb.print_hello", text="Say Hello")
+    def draw(self, context: bpy.types.Context):
+        for op in (ops.PrintHelloOperator,
+                   ):
+            registration.register_menu_operator(self, op)
 
 class MenuBar(bpy.types.Menu):
     bl_label = "NukeTheBees"
     bl_idname = "NTB_MT_MenuBar"
 
-    def draw(self, context):
-        layout = self.layout
-        layout.operator("ntb.print_hello", text="Say Hello", icon='TEXT')
-        layout.operator("ntb.reload_scripts", text="Reload Scripts", icon='TEXT')
-        layout.operator("ntb.unreal_export_all_meshes_separately", text="Export Unreal", icon='TEXT')
-        
+    def draw(self, context: bpy.types.Context):
+        for op in (ops.PrintHelloOperator, 
+                   ops.ReloadScriptsOperator, 
+                   ops.UnrealExportAllMeshesSeparatelyOperator):
+            registration.register_menu_operator(self, op)
 
-def draw_menu_button(self, context):
+def draw_menu_button(self, context: bpy.types.Context):
     self.layout.menu(MenuBar.bl_idname)
