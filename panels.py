@@ -30,9 +30,7 @@ class MenuBar(bpy.types.Menu):
 
     def draw(self, context: bpy.types.Context):
         for op in (ops.PrintHelloOperator, 
-                   ops.ReloadScriptsOperator, 
-                   ops.UnrealExportAllMeshesSeparatelyOperator,
-                   ops.UnrealExportAllMeshesAsOneOperator):
+                   ops.ReloadScriptsOperator):
             registration.register_menu_operator(self, op)
 
 def draw_menu_button(self, context: bpy.types.Context):

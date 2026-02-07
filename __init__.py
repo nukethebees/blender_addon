@@ -27,8 +27,6 @@ if "bpy" in locals():
 
 classes_to_register = (
     ops.PrintHelloOperator,
-    ops.UnrealExportAllMeshesSeparatelyOperator,
-    ops.UnrealExportAllMeshesAsOneOperator,
     ops.UnrealExportMeshesOperator,
     ops.UnrealExportMeshesOperator.Settings,
     ops.ReloadScriptsOperator,
