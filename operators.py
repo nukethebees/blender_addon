@@ -68,6 +68,7 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
 
     def init_class_members(self) -> None:
         self.empty_scales = {}
+        self.to_remove = []
 
     def shrink_empty_scales(self, context) -> None:
         self.empty_scales = {}
@@ -82,6 +83,33 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
 
     def export_cleanup(self) -> None:
         self.restore_empty_scales()
+
+        for obj in self.to_remove:
+            bpy.data.objects.remove(obj, do_unlink=True)
+
+    def create_union(self, context) -> None:
+        bpy.ops.object.duplicate()
+
+        dupes = []
+        for obj in context.selected_objects:
+            obj.name = f"UnionTemp_{obj.name}"
+            dupes.append(obj)      
+
+        # Boolean union them
+        base = dupes[0]
+        bpy.context.view_layer.objects.active = base
+
+        for obj in dupes[1:]:
+            mod = base.modifiers.new(name=f"Union_{obj.name}", type='BOOLEAN')
+            mod.operation = 'UNION'
+            mod.object = obj
+            bpy.ops.object.modifier_apply(modifier=mod.name)
+            bpy.data.objects.remove(obj, do_unlink=True)
+
+        # Export the combined union mesh
+        select_only(base)
+
+        self.to_remove.append(base)
 
     def execute(self, context: bpy.types.Context):
         self.init_class_members()
@@ -118,6 +146,7 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
 
         if (props.mesh_mode == "Combine"): 
             select_all_meshes_only(context)
+            #self.create_union(context)
             export_mesh_to_fbx(Path(bpy.data.filepath).stem)
             self.report({'INFO'}, f"Exported to FBX")
         else:
