@@ -70,17 +70,32 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
         props: UnrealExportMeshesOperator.Settings = context.scene.unreal_export_meshes_settings
         folder = get_export_dir()
 
+        if context.mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
+
         def get_file_path(file_name:str) -> str:
             return os.path.join(folder, file_name)
         def run_fbx_export(file_path: str):
-            bpy.ops.export_scene.fbx(
-                filepath=file_path,
-                apply_unit_scale=True,
-                object_types={'MESH'},
-                axis_forward='X',
-                axis_up='Z',
-                mesh_smooth_type='SMOOTH_GROUP'
-            )
+            empty_scales = {}
+            for obj in context.scene.objects:
+                if obj.type == 'EMPTY':
+                    empty_scales[obj.name] = obj.scale.copy()
+                    obj.scale = (0.01, 0.01, 0.01)  # shrink to tiny size for Unreal
+
+            try:
+                bpy.ops.export_scene.fbx(
+                    filepath=file_path,
+                    apply_unit_scale=True,
+                    object_types={'MESH', 'EMPTY'},
+                    axis_forward='X',
+                    axis_up='Z',
+                    mesh_smooth_type='SMOOTH_GROUP'
+                )
+            except:
+                pass
+            finally:
+                for name, scale in empty_scales.items():
+                    bpy.data.objects[name].scale = scale
        
         def export_mesh_to_fbx(name:str) -> None:
             file_name = make_fbx_name(name)
