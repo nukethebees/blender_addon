@@ -80,6 +80,9 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
         for name, scale in self.empty_scales.items():
             bpy.data.objects[name].scale = scale
 
+    def export_cleanup(self) -> None:
+        self.restore_empty_scales()
+
     def execute(self, context: bpy.types.Context):
         self.init_class_members()
 
@@ -106,7 +109,7 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
             except:
                 pass
             
-            self.restore_empty_scales()
+            self.export_cleanup()
        
         def export_mesh_to_fbx(name:str) -> None:
             file_name = make_fbx_name(name)
