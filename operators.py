@@ -66,7 +66,23 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
             default='Combine'
         ) # type: ignore
 
+    def init_class_members(self) -> None:
+        self.empty_scales = {}
+
+    def shrink_empty_scales(self, context) -> None:
+        self.empty_scales = {}
+        for obj in context.scene.objects:
+            if obj.type == 'EMPTY':
+                self.empty_scales[obj.name] = obj.scale.copy()
+                obj.scale = (0.01, 0.01, 0.01)  # shrink to tiny size for Unreal
+
+    def restore_empty_scales(self) -> None:
+        for name, scale in self.empty_scales.items():
+            bpy.data.objects[name].scale = scale
+
     def execute(self, context: bpy.types.Context):
+        self.init_class_members()
+
         props: UnrealExportMeshesOperator.Settings = context.scene.unreal_export_meshes_settings
         folder = get_export_dir()
 
@@ -76,11 +92,7 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
         def get_file_path(file_name:str) -> str:
             return os.path.join(folder, file_name)
         def run_fbx_export(file_path: str):
-            empty_scales = {}
-            for obj in context.scene.objects:
-                if obj.type == 'EMPTY':
-                    empty_scales[obj.name] = obj.scale.copy()
-                    obj.scale = (0.01, 0.01, 0.01)  # shrink to tiny size for Unreal
+            self.shrink_empty_scales(context)
 
             try:
                 bpy.ops.export_scene.fbx(
@@ -93,9 +105,8 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
                 )
             except:
                 pass
-            finally:
-                for name, scale in empty_scales.items():
-                    bpy.data.objects[name].scale = scale
+            
+            self.restore_empty_scales()
        
         def export_mesh_to_fbx(name:str) -> None:
             file_name = make_fbx_name(name)
