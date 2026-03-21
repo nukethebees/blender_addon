@@ -146,7 +146,6 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
 
         if (props.mesh_mode == "Combine"): 
             select_all_meshes_only(context)
-            #self.create_union(context)
             export_mesh_to_fbx(Path(bpy.data.filepath).stem)
             self.report({'INFO'}, f"Exported to FBX")
         else:
