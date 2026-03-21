@@ -1,3 +1,5 @@
+from typing import Any
+
 import bpy
 
 from . import operators as ops
@@ -13,6 +15,27 @@ class NPanel(bpy.types.Panel):
     bl_region_type = 'UI'
     bl_category = 'NukeTheBees'
 
+    def split_prop(self, 
+                   layout: bpy.types.UILayout, 
+                   data: Any, 
+                   disp_name:str, 
+                   prop_name:str, 
+                   factor:float=0.5):
+        split = layout.split(factor=factor)
+        split.label(text=disp_name)
+        split.prop(data, prop_name, text="")
+
+    def split_props(self, layout: bpy.types.UILayout, prop_group: bpy.types.PropertyGroup):
+        identifiers_to_ignore = set((
+            "rna_type",
+            "name",
+        ))
+
+        for prop in prop_group.bl_rna.properties:
+            if prop.identifier in identifiers_to_ignore:
+                continue
+            self.split_prop(layout, prop_group, prop.name, prop.identifier)
+
     def draw(self, context: bpy.types.Context):
         ro = registration.register_menu_operator
 
@@ -20,20 +43,19 @@ class NPanel(bpy.types.Panel):
             ops.PrintHelloOperator,
         )
         for op in reg_ops:
-            ro(self, op)
+            ro(self.layout, op)
 
-        self.layout.separator()
-        ro(self, ops.UnrealExportMeshesOperator)
+        
+
+        export_box = self.layout.box()
+        ro(export_box, ops.UnrealExportMeshesOperator)
         export_mesh_props: ops.UnrealExportMeshesOperator.Settings = context.scene.unreal_export_meshes_settings
-        self.layout.prop(export_mesh_props, "mesh_mode")
+        self.split_props(export_box, export_mesh_props)
 
-        self.layout.separator()
-        ro(self, ops.DuplicateAroundCursorOperator)
+        dupe_box = self.layout.box()
+        ro(dupe_box, ops.DuplicateAroundCursorOperator)
         dupe_around_props: ops.DuplicateAroundCursorOperator.Settings = context.scene.duplicate_around_cursor_settings
-        self.layout.prop(dupe_around_props, "count")
-        self.layout.prop(dupe_around_props, "radius")
-        self.layout.prop(dupe_around_props, "apply_transforms")
-        self.layout.prop(dupe_around_props, "orientation")
+        self.split_props(dupe_box, dupe_around_props)
 
 class MenuBar(bpy.types.Menu):
     bl_label = "NukeTheBees"

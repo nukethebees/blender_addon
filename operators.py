@@ -44,7 +44,7 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
 
     class Settings(bpy.types.PropertyGroup):
         mesh_mode: bpy.props.EnumProperty(
-            name="Mesh Mode",
+            name="Mesh mode",
             description="Mesh combining mode",
             items=[
                 ('Combine', "Combine", "Combine meshes as one"),
@@ -154,24 +154,29 @@ class DuplicateAroundCursorOperator(bpy.types.Operator):
 
     class Settings(bpy.types.PropertyGroup):
         count: bpy.props.IntProperty(
-            name="count",
+            name="Count",
             default=8,
             min=1,
             description="Number of duplicates"
         ) # type: ignore
         radius: bpy.props.FloatProperty(
-            name="radius",
+            name="Radius",
             default=2.0,
             min=0.0,
             description="Radius of the circle"
         ) # type: ignore
         apply_transforms: bpy.props.BoolProperty(
-            name="apply_transforms",
+            name="Apply transforms",
             default=False,
             description="Apply transforms"
         ) # type: ignore
+        angle_offset: bpy.props.FloatProperty(
+            name="Angle offset",
+            default=0.0,
+            description="Angle offset"
+        ) # type: ignore
         orientation: bpy.props.EnumProperty(
-            name="orientation",
+            name="Orientation",
             description="Copy orientation",
             items=[
                 ('Source', "Source", "Same as source object"),
@@ -194,13 +199,14 @@ class DuplicateAroundCursorOperator(bpy.types.Operator):
         props = cast(UnrealExportMeshesOperator.Settings, context.scene.duplicate_around_cursor_settings)
         count = cast(int, props.count)
         radius = cast(float, props.radius)
+        angle_offset = cast(float, props.angle_offset)
 
         created_objects: list[bpy.types.Object] = []
         cursor = context.scene.cursor.location
         angle_step = 2 * math.pi / count
 
         for i in range(count):
-            angle = i * angle_step
+            angle = (i * angle_step) + angle_offset
             pos = mathutils.Vector((
                 cursor.x + radius * math.cos(angle),
                 cursor.y + radius * math.sin(angle),
