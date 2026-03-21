@@ -132,7 +132,8 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
                     object_types={'MESH', 'EMPTY'},
                     axis_forward='X',
                     axis_up='Z',
-                    mesh_smooth_type='SMOOTH_GROUP'
+                    mesh_smooth_type='SMOOTH_GROUP',
+                    use_selection=True
                 )
             except:
                 pass
