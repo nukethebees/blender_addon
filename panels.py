@@ -15,6 +15,11 @@ class NPanel(bpy.types.Panel):
     bl_region_type = 'UI'
     bl_category = 'NukeTheBees'
 
+    identifiers_to_ignore = set((
+            "rna_type",
+            "name",
+        ))
+
     def split_prop(self, 
                    layout: bpy.types.UILayout, 
                    data: Any, 
@@ -26,13 +31,8 @@ class NPanel(bpy.types.Panel):
         split.prop(data, prop_name, text="")
 
     def split_props(self, layout: bpy.types.UILayout, prop_group: bpy.types.PropertyGroup):
-        identifiers_to_ignore = set((
-            "rna_type",
-            "name",
-        ))
-
         for prop in prop_group.bl_rna.properties:
-            if prop.identifier in identifiers_to_ignore:
+            if prop.identifier in self.identifiers_to_ignore:
                 continue
             self.split_prop(layout, prop_group, prop.name, prop.identifier)
 
@@ -55,7 +55,20 @@ class NPanel(bpy.types.Panel):
         dupe_box = self.layout.box()
         ro(dupe_box, ops.DuplicateAroundCursorOperator)
         dupe_around_props: ops.DuplicateAroundCursorOperator.Settings = context.scene.duplicate_around_cursor_settings
-        self.split_props(dupe_box, dupe_around_props)
+        
+        is_radius = dupe_around_props.positioning_mode == "Radius"
+        radius_skips = set((
+            "radius", "angle_offset"
+        ))
+        for prop in dupe_around_props.bl_rna.properties:
+            if prop.identifier in self.identifiers_to_ignore:
+                continue
+
+            if not is_radius:
+                if prop.identifier in radius_skips:
+                    continue
+
+            self.split_prop(dupe_box, dupe_around_props, prop.name, prop.identifier)
 
 class MenuBar(bpy.types.Menu):
     bl_label = "NukeTheBees"

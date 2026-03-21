@@ -159,6 +159,15 @@ class DuplicateAroundCursorOperator(bpy.types.Operator):
             min=1,
             description="Number of duplicates"
         ) # type: ignore
+        positioning_mode: bpy.props.EnumProperty(
+            name="Positioning mode",
+            description="Determine how the copies are positioned",
+            items=[
+                ('Radius', "Radius", "Radius value"),
+                ('SelectedObject', "Selected Object", "Selected object is first object"),
+            ],
+            default='SelectedObject'
+        ) # type: ignore
         radius: bpy.props.FloatProperty(
             name="Radius",
             default=2.0,
@@ -191,47 +200,83 @@ class DuplicateAroundCursorOperator(bpy.types.Operator):
             self.report({'WARNING'}, f"{n_selected_objects} selected objects. Only 1 allowed")
             return {'CANCELLED'}
 
-        obj = context.selected_objects[0]
-        if obj is None:
+        self.ref_obj = context.selected_objects[0]
+        if self.ref_obj is None:
             self.report({'WARNING'}, "Object is none")
             return {'CANCELLED'}         
         
-        props = cast(UnrealExportMeshesOperator.Settings, context.scene.duplicate_around_cursor_settings)
-        count = cast(int, props.count)
-        radius = cast(float, props.radius)
-        angle_offset = cast(float, props.angle_offset)
+        self.props = cast(UnrealExportMeshesOperator.Settings, context.scene.duplicate_around_cursor_settings)
+        self.count = cast(int, self.props.count)
+        self.radius = cast(float, self.props.radius)
+        self.angle_offset = cast(float, self.props.angle_offset)
+        self.positioning_mode = cast(float, self.props.positioning_mode)
+        self.orientation = cast(str, self.props.orientation)
+        self.apply_transforms = cast(bool, self.props.apply_transforms)
 
-        created_objects: list[bpy.types.Object] = []
+        self.ring_objects: list[bpy.types.Object] = []
+
         cursor = context.scene.cursor.location
-        angle_step = 2 * math.pi / count
+        self.angle_step = 2 * math.pi / self.count
+        print(f"Count: {self.count}")
 
-        for i in range(count):
-            angle = (i * angle_step) + angle_offset
-            pos = mathutils.Vector((
-                cursor.x + radius * math.cos(angle),
-                cursor.y + radius * math.sin(angle),
-                cursor.z
-            ))
-
-            new_obj = obj.copy()
-            if obj.data is not None:
-                new_obj.data = obj.data.copy()
-            new_obj.location = pos
-            new_obj.name = f"{obj.name}_{i}"
-
-            if props.orientation == "CentreXY":
-                direction = (cursor - pos).normalized()
-                rot = direction.to_track_quat('Z', 'Y')  # Z forward, Y up
-                new_obj.rotation_euler = rot.to_euler()
+        start_index = 0
+        match self.positioning_mode:
+            case "Radius":
+                pass
+            case "SelectedObject":
+                start_index = 1
+                self.ring_objects.append(self.ref_obj)
+            case _:
+                self.report({'WARNING'}, f"Unhandled positioning mode: {self.positioning_mode}")
+                return {'CANCELLED'}      
+        
+        for i in range(start_index, self.count):
+            new_obj = self.ref_obj.copy()
+            if self.ref_obj.data is not None:
+                new_obj.data = self.ref_obj.data.copy()
+            new_obj.name = f"{self.ref_obj.name}_{i}"
 
             context.collection.objects.link(new_obj)
-            created_objects.append(new_obj)
+            self.ring_objects.append(new_obj)
 
-        if props.apply_transforms:
+        for i in range(self.count):
+            obj = self.ring_objects[i]
+            angle = (i * self.angle_step) + self.angle_offset
+
+            match self.positioning_mode:
+                case "Radius":
+                    pos = mathutils.Vector((
+                        cursor.x + self.radius * math.cos(angle),
+                        cursor.y + self.radius * math.sin(angle),
+                        cursor.z
+                    ))
+                    obj.location = pos
+                case "SelectedObject":
+                    translated = self.ref_obj.location - cursor
+                    rotation_matrix = mathutils.Matrix.Rotation(angle, 3, 'Z')
+                    rotated = rotation_matrix @ translated
+                    pos = rotated + cursor
+                    obj.location = pos
+                case _:
+                    self.report({'WARNING'}, f"Unhandled positioning mode: {self.positioning_mode}")
+                    return {'CANCELLED'}   
+
+            match self.orientation:
+                case "CentreXY":
+                    direction = (cursor - obj.location)
+                    rot = direction.to_track_quat('-Z', 'Y')
+                    obj.rotation_euler = rot.to_euler()
+                case "Source":
+                    pass
+                case _:
+                    self.report({'WARNING'}, f"Unhandled orientation: {self.orientation}")
+                    return {'CANCELLED'}
+
+        if self.apply_transforms:
             bpy.ops.object.select_all(action='DESELECT')
-            for o in created_objects:
+            for o in self.ring_objects:
                 o.select_set(True)
-            context.view_layer.objects.active = created_objects[0]
+            context.view_layer.objects.active = self.ring_objects[0]
             bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
 
 
