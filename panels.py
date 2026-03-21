@@ -16,13 +16,24 @@ class NPanel(bpy.types.Panel):
     def draw(self, context: bpy.types.Context):
         ro = registration.register_menu_operator
 
-        for op in (ops.PrintHelloOperator,
-                   ):
+        reg_ops = (
+            ops.PrintHelloOperator,
+        )
+        for op in reg_ops:
             ro(self, op)
 
+        self.layout.separator()
         ro(self, ops.UnrealExportMeshesOperator)
-        props: ops.UnrealExportMeshesOperator.Settings = context.scene.unreal_export_meshes_settings
-        self.layout.prop(props, "mesh_mode")
+        export_mesh_props: ops.UnrealExportMeshesOperator.Settings = context.scene.unreal_export_meshes_settings
+        self.layout.prop(export_mesh_props, "mesh_mode")
+
+        self.layout.separator()
+        ro(self, ops.DuplicateAroundCursorOperator)
+        dupe_around_props: ops.DuplicateAroundCursorOperator.Settings = context.scene.duplicate_around_cursor_settings
+        self.layout.prop(dupe_around_props, "count")
+        self.layout.prop(dupe_around_props, "radius")
+        self.layout.prop(dupe_around_props, "apply_transforms")
+        self.layout.prop(dupe_around_props, "orientation")
 
 class MenuBar(bpy.types.Menu):
     bl_label = "NukeTheBees"

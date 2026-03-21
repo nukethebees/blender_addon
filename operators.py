@@ -1,7 +1,12 @@
+import math
 import os
 from pathlib import Path
+from typing import cast
 
 import bpy
+import mathutils
+
+from .selection_utils import *
 
 class PrintHelloOperator(bpy.types.Operator):
     bl_idname = "ntb.print_hello"
@@ -31,24 +36,6 @@ def make_fbx_name(x:str) -> str:
 def make_combined_sm_name() -> str:
     blend_name = Path(bpy.data.filepath).stem
     return make_fbx_name(blend_name)
-
-def get_all_meshes(context: bpy.types.Context) -> list[bpy.types.Object]:
-    return [obj for obj in context.scene.objects if obj.type == 'MESH']
-
-def unselect_all() -> None:
-    bpy.ops.object.select_all(action='DESELECT')
-
-def select_all_meshes_only(context: bpy.types.Context
-                           ) -> list[bpy.types.Object]:
-    unselect_all()
-    mesh_objects = get_all_meshes(context)
-    for obj in mesh_objects:
-        obj.select_set(True)
-    return mesh_objects
-
-def select_only(obj: bpy.types.Object) -> None:
-    unselect_all()
-    obj.select_set(True)
 
 class UnrealExportMeshesOperator(bpy.types.Operator):
     bl_idname = "ntb.unreal_export_meshes"
@@ -152,10 +139,94 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
         else:
             n_exported = 0
             for obj in get_all_meshes(context):
-                select_only(obj)
+                select_hierarchy(obj)
                 export_mesh_to_fbx(obj.name)
                 n_exported += 1
 
             self.report({'INFO'}, f"Exported {n_exported} objects to FBX")
         unselect_all()
+        return {'FINISHED'}
+    
+class DuplicateAroundCursorOperator(bpy.types.Operator):
+    bl_idname = "ntb.duplicate_around_cursor"
+    bl_label = "Duplicate around cursor"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    class Settings(bpy.types.PropertyGroup):
+        count: bpy.props.IntProperty(
+            name="count",
+            default=8,
+            min=1,
+            description="Number of duplicates"
+        ) # type: ignore
+        radius: bpy.props.FloatProperty(
+            name="radius",
+            default=2.0,
+            min=0.0,
+            description="Radius of the circle"
+        ) # type: ignore
+        apply_transforms: bpy.props.BoolProperty(
+            name="apply_transforms",
+            default=False,
+            description="Apply transforms"
+        ) # type: ignore
+        orientation: bpy.props.EnumProperty(
+            name="orientation",
+            description="Copy orientation",
+            items=[
+                ('Source', "Source", "Same as source object"),
+                ('CentreXY', "CentreXY", "Towards centre object"),
+            ],
+            default='CentreXY'
+        ) # type: ignore
+
+    def execute(self, context: bpy.types.Context):
+        n_selected_objects = len(context.selected_objects)
+        if n_selected_objects != 1:
+            self.report({'WARNING'}, f"{n_selected_objects} selected objects. Only 1 allowed")
+            return {'CANCELLED'}
+
+        obj = context.selected_objects[0]
+        if obj is None:
+            self.report({'WARNING'}, "Object is none")
+            return {'CANCELLED'}         
+        
+        props = cast(UnrealExportMeshesOperator.Settings, context.scene.duplicate_around_cursor_settings)
+        count = cast(int, props.count)
+        radius = cast(float, props.radius)
+
+        created_objects: list[bpy.types.Object] = []
+        cursor = context.scene.cursor.location
+        angle_step = 2 * math.pi / count
+
+        for i in range(count):
+            angle = i * angle_step
+            pos = mathutils.Vector((
+                cursor.x + radius * math.cos(angle),
+                cursor.y + radius * math.sin(angle),
+                cursor.z
+            ))
+
+            new_obj = obj.copy()
+            if obj.data is not None:
+                new_obj.data = obj.data.copy()
+            new_obj.location = pos
+            new_obj.name = f"{obj.name}_{i}"
+
+            if props.orientation == "CentreXY":
+                direction = (cursor - pos).normalized()
+                rot = direction.to_track_quat('Z', 'Y')  # Z forward, Y up
+                new_obj.rotation_euler = rot.to_euler()
+
+            context.collection.objects.link(new_obj)
+            created_objects.append(new_obj)
+
+        if props.apply_transforms:
+            bpy.ops.object.select_all(action='DESELECT')
+            for o in created_objects:
+                o.select_set(True)
+            context.view_layer.objects.active = created_objects[0]
+            bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+
+
         return {'FINISHED'}
