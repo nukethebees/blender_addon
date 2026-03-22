@@ -151,6 +151,48 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
         unselect_all()
         return {'FINISHED'}
     
+class PropFactory:
+    @staticmethod
+    def angle_offset():
+        return bpy.props.FloatProperty(
+            name="Angle offset",
+            default=0.0,
+            description="Angle offset"
+        ) # type: ignore
+    @staticmethod
+    def orientation_fwd():
+        return bpy.props.StringProperty(
+            name="Orientation Forward",
+            description="The forward axis for alignment.",
+            default="X"
+        ) # type: ignore
+    @staticmethod
+    def orientation_up(): 
+        return bpy.props.StringProperty(
+            name="Orientation up",
+            description="The up axis for alignment.",
+            default="Z"
+        ) # type: ignore
+    @staticmethod
+    def orientation_offset():
+        return bpy.props.FloatVectorProperty(
+            name="Orientation offset",
+            description="Orientation offset (degrees)",
+            default=Vector()
+        ) # type: ignore
+    @staticmethod
+    def orientation(): 
+        return bpy.props.EnumProperty(
+            name="Orientation",
+            description="Alignment orientation",
+            items=[
+                ('Towards', "Towards", "Towards cursor"),
+                ('Away', "Away", "Away from cursor"),
+                ('Source', "Source", "Same as source object"),
+            ],
+            default='Towards'
+        ) # type: ignore
+
 class DuplicateAroundCursorOperator(bpy.types.Operator):
     bl_idname = "ntb.duplicate_around_cursor"
     bl_label = "Duplicate around cursor"
@@ -183,36 +225,12 @@ class DuplicateAroundCursorOperator(bpy.types.Operator):
             default=False,
             description="Apply transforms"
         ) # type: ignore
-        angle_offset: bpy.props.FloatProperty(
-            name="Angle offset",
-            default=0.0,
-            description="Angle offset"
-        ) # type: ignore
-        orientation: bpy.props.EnumProperty(
-            name="Orientation",
-            description="Copy orientation",
-            items=[
-                ('Source', "Source", "Same as source object"),
-                ('CentreXY', "CentreXY", "Towards centre object"),
-                ('-CentreXY', "-CentreXY", "Away from centre object"),
-            ],
-            default='CentreXY'
-        ) # type: ignore
-        orientation_fwd: bpy.props.StringProperty(
-            name="Orientation Forward",
-            description="The forward axis for alignment.",
-            default="X"
-        ) # type: ignore
-        orientation_up: bpy.props.StringProperty(
-            name="Orientation up",
-            description="The up axis for alignment.",
-            default="Z"
-        ) # type: ignore
-        orientation_offset: bpy.props.FloatVectorProperty(
-            name="Orientation offset",
-            description="Orientation offset (degrees)",
-            default=Vector()
-        ) # type: ignore
+        angle_offset: PropFactory.angle_offset()  # type: ignore
+        orientation: PropFactory.orientation() # type: ignore
+        orientation_fwd: PropFactory.orientation_fwd() # type: ignore
+        orientation_up: PropFactory.orientation_up() # type: ignore
+        orientation_offset: PropFactory.orientation_offset() # type: ignore
+        
 
     def orientate_towards(self, obj:bpy.types.Object, direction:Vector) -> None:
         return ou.orientate_towards(obj, direction, (self.orientation_fwd, self.orientation_up), self.orientation_offset)
@@ -299,9 +317,9 @@ class DuplicateAroundCursorOperator(bpy.types.Operator):
                     return {'CANCELLED'}   
 
             match self.orientation:
-                case "CentreXY":
+                case "Towards":
                     self.orientate_towards(obj, cursor - obj.location)
-                case "-CentreXY":
+                case "Away":
                     self.orientate_towards(obj, obj.location - cursor)
                 case "Source":
                     pass
@@ -320,35 +338,10 @@ class AlignAroundCursorOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     class Settings(bpy.types.PropertyGroup):
-        angle_offset: bpy.props.FloatProperty(
-            name="Angle offset",
-            default=0.0,
-            description="Angle offset"
-        ) # type: ignore
-        orientation: bpy.props.EnumProperty(
-            name="Orientation",
-            description="Alignment orientation",
-            items=[
-                ('Towards', "Towards", "Towards cursor"),
-                ('Away', "Away", "Away from cursor"),
-            ],
-            default='Towards'
-        ) # type: ignore
-        orientation_fwd: bpy.props.StringProperty(
-            name="Orientation Forward",
-            description="The forward axis for alignment.",
-            default="X"
-        ) # type: ignore
-        orientation_up: bpy.props.StringProperty(
-            name="Orientation up",
-            description="The up axis for alignment.",
-            default="Z"
-        ) # type: ignore
-        orientation_offset: bpy.props.FloatVectorProperty(
-            name="Orientation offset",
-            description="Orientation offset (degrees)",
-            default=Vector()
-        ) # type: ignore
+        orientation: PropFactory.orientation() # type: ignore
+        orientation_fwd: PropFactory.orientation_fwd() # type: ignore
+        orientation_up: PropFactory.orientation_up() # type: ignore
+        orientation_offset: PropFactory.orientation_offset() # type: ignore
 
     def execute(self, context: bpy.types.Context) -> set[str]:
         n_selected_objects = len(context.selected_objects)
@@ -384,6 +377,8 @@ class AlignAroundCursorOperator(bpy.types.Operator):
                     ou.orientate_towards(obj, cursor - obj.location, self.orientation_fwd_up, self.orientation_offset)
                 case "Away":
                     ou.orientate_towards(obj, obj.location - cursor, self.orientation_fwd_up, self.orientation_offset)
+                case "Source":
+                    pass
                 case _:
                     self.report({'WARNING'}, f"Unhandled orientation: {self.orientation}")
                     return {'CANCELLED'}
