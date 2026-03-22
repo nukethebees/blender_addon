@@ -60,8 +60,11 @@ class NPanel(bpy.types.Panel):
         radius_skips = set((
             "radius", "angle_offset"
         ))
+        orientate_to_ignore = set(self.identifiers_to_ignore)
+        orientate_to_ignore.add("orientation_fwd")
+        orientate_to_ignore.add("orientation_up")
         for prop in dupe_around_props.bl_rna.properties:
-            if prop.identifier in self.identifiers_to_ignore:
+            if prop.identifier in orientate_to_ignore:
                 continue
 
             if not is_radius:
@@ -69,6 +72,11 @@ class NPanel(bpy.types.Panel):
                     continue
 
             self.split_prop(dupe_box, dupe_around_props, prop.name, prop.identifier)
+
+        orientation_row = dupe_box.row()
+        orientation_row.label(text="Fwd/up")
+        orientation_row.prop(dupe_around_props, "orientation_fwd", text="")
+        orientation_row.prop(dupe_around_props, "orientation_up", text="")
 
 class MenuBar(bpy.types.Menu):
     bl_label = "NukeTheBees"
