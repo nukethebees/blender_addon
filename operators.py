@@ -193,6 +193,7 @@ class DuplicateAroundCursorOperator(bpy.types.Operator):
             items=[
                 ('Source', "Source", "Same as source object"),
                 ('CentreXY', "CentreXY", "Towards centre object"),
+                ('-CentreXY', "-CentreXY", "Away from centre object"),
             ],
             default='CentreXY'
         ) # type: ignore
@@ -211,6 +212,15 @@ class DuplicateAroundCursorOperator(bpy.types.Operator):
             description="Orientation offset (degrees)",
             default=Vector()
         ) # type: ignore
+
+    def orientate_towards(self, obj:bpy.types.Object, direction:Vector) -> None:
+        rot = direction.to_track_quat(self.orientation_fwd, self.orientation_up)
+        obj.rotation_euler = rot.to_euler()
+
+        offset = Vector(math.radians(d) for d in self.orientation_offset)
+        obj.rotation_euler.x += offset.x
+        obj.rotation_euler.y += offset.y
+        obj.rotation_euler.z += offset.z
 
     def apply_transforms(self, context: bpy.types.Context):
         bpy.ops.object.select_all(action='DESELECT')
@@ -295,14 +305,9 @@ class DuplicateAroundCursorOperator(bpy.types.Operator):
 
             match self.orientation:
                 case "CentreXY":
-                    direction = (cursor - obj.location)
-                    rot = direction.to_track_quat(self.orientation_fwd, self.orientation_up)
-                    obj.rotation_euler = rot.to_euler()
-                    
-                    offset = Vector(math.radians(d) for d in self.orientation_offset)
-                    obj.rotation_euler.x += offset.x
-                    obj.rotation_euler.y += offset.y
-                    obj.rotation_euler.z += offset.z
+                    self.orientate_towards(obj, cursor - obj.location)
+                case "-CentreXY":
+                    self.orientate_towards(obj, obj.location - cursor)
                 case "Source":
                     pass
                 case _:
