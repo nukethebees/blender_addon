@@ -63,28 +63,13 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
         self.props = cast(UnrealExportMeshesOperator.Settings, context.scene.unreal_export_meshes_settings)
 
         self.original_objects: list[BpyObject] = list(context.scene.objects)
-        self.empty_scales = {}
         self.to_remove: list[BpyObject] = []
         self.folder:str = ex.get_export_dir()
         self.export_objects: list[BpyObject] = []
-
-        self.export_prefix = ""
         self.original_prefix = "ORIGINAL_"
-
-    def shrink_empty_scales(self, context) -> None:
-        self.empty_scales = {}
-        for obj in context.scene.objects:
-            if obj.type == 'EMPTY':
-                self.empty_scales[obj.name] = obj.scale.copy()
-                obj.scale = (0.01, 0.01, 0.01)  # shrink to tiny size for Unreal
-
-    def restore_empty_scales(self) -> None:
-        for name, scale in self.empty_scales.items():
-            bpy.data.objects[name].scale = scale
+        self.original_scale_prop = "original_scale"
 
     def export_cleanup(self, context: BpyContext) -> None:
-        self.restore_empty_scales()
-
         for obj in self.to_remove:
             if obj:
                 bpy.data.objects.remove(obj, do_unlink=True)
@@ -101,8 +86,6 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
         self.run_fbx_export(context, file_path)
 
     def run_fbx_export(self, context: BpyContext, file_path: str):
-        self.shrink_empty_scales(context)
-
         try:
             bpy.ops.export_scene.fbx(
                 filepath=file_path,
@@ -130,13 +113,12 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
     def copy_all_mesh_objects(self, context: BpyContext):
         scene_objects = list(o for o in context.scene.objects if o.parent is None)
         d = ex.Duplicator(context, 
-                          self.export_prefix, 
-                          self.original_prefix, 
+                          duplicate_prefix="", 
+                          original_prefix=self.original_prefix, 
                           debug_mode=self.props.debug_mode)
 
         for obj in scene_objects:
-            new_obj = d.duplicate_hierarchy(obj)
-            #self.export_objects.append(new_obj)
+            d.duplicate_hierarchy(obj)
         
         self.export_objects = d.new_objects
 
@@ -155,17 +137,12 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
                 su.select_all_meshes_only(context)
                 self.export_mesh_to_fbx(context, Path(bpy.data.filepath).stem)
                 self.report({'INFO'}, f"Exported to FBX")
-            case "Separate": 
-                n_exported = 0
-                for obj in su.get_all_meshes(context):
-                    su.select_hierarchy(obj)
-                    self.export_mesh_to_fbx(context, obj.name)
-                    n_exported += 1
-
-                self.report({'INFO'}, f"Exported {n_exported} objects to FBX")
-            case "NewSeparate":
+            case "Separate":
                 n_exported = 0
                 self.copy_all_mesh_objects(context)
+                for obj in (o for o in self.export_objects if o.type == "EMPTY"):
+                    obj.scale = (0.01, 0.01, 0.01)
+
                 for obj in (o for o in self.export_objects if o.type == "MESH"):
                     su.select_hierarchy(obj)
                     name = obj.name
@@ -181,6 +158,7 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
         if self.props.remove_copies:
             self.export_cleanup(context)
         self.remove_prefix_original_objects()
+        
         su.unselect_all()
         su.select_objects(original_selected)
         if original_active is not None:
