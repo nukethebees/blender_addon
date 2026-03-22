@@ -5,6 +5,8 @@ import re
 from typing import cast
 
 import bpy
+BpyObject = bpy.types.Object
+
 import mathutils
 
 Vector = mathutils.Vector
@@ -47,8 +49,9 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
 
     def init_class_members(self) -> None:
         self.empty_scales = {}
-        self.to_remove = []
-        self.folder = ex.get_export_dir()
+        self.to_remove: list[BpyObject] = []
+        self.folder:str = ex.get_export_dir()
+        self.copied_objects: list[BpyObject] = []
 
     def shrink_empty_scales(self, context) -> None:
         self.empty_scales = {}
@@ -92,6 +95,9 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
             pass
         
         self.export_cleanup()
+
+    def copy_all_mesh_objects(self):
+        pass
 
     def execute(self, context: bpy.types.Context) -> set[str]:
         self.init_class_members()
@@ -211,7 +217,7 @@ class DuplicateAroundCursorOperator(bpy.types.Operator):
         orientation_offset: PropFactory.orientation_offset() # type: ignore
         
 
-    def orientate_towards(self, obj:bpy.types.Object, direction:Vector) -> None:
+    def orientate_towards(self, obj:BpyObject, direction:Vector) -> None:
         return ou.orientate_towards(obj, direction, (self.orientation_fwd, self.orientation_up), self.orientation_offset)
 
     def apply_transforms(self, context: bpy.types.Context):
@@ -243,7 +249,7 @@ class DuplicateAroundCursorOperator(bpy.types.Operator):
         self.orientation_up = cast(str, self.props.orientation_up)
         self.orientation_offset = cast(Vector, self.props.orientation_offset)
 
-        self.ring_objects: list[bpy.types.Object] = []
+        self.ring_objects: list[BpyObject] = []
         cursor = context.scene.cursor.location
         self.angle_step = 2 * math.pi / self.count
         
