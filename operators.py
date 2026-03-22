@@ -104,18 +104,23 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
 
         bpy.ops.object.mode_set(mode='OBJECT')
 
-        if (props.mesh_mode == "Combine"): 
-            su.select_all_meshes_only(context)
-            self.export_mesh_to_fbx(context, Path(bpy.data.filepath).stem)
-            self.report({'INFO'}, f"Exported to FBX")
-        else:
-            n_exported = 0
-            for obj in su.get_all_meshes(context):
-                su.select_hierarchy(obj)
-                self.export_mesh_to_fbx(context, obj.name)
-                n_exported += 1
+        match props.mesh_mode:
+            case "Combine": 
+                su.select_all_meshes_only(context)
+                self.export_mesh_to_fbx(context, Path(bpy.data.filepath).stem)
+                self.report({'INFO'}, f"Exported to FBX")
+            case "Separate": 
+                n_exported = 0
+                for obj in su.get_all_meshes(context):
+                    su.select_hierarchy(obj)
+                    self.export_mesh_to_fbx(context, obj.name)
+                    n_exported += 1
 
-            self.report({'INFO'}, f"Exported {n_exported} objects to FBX")
+                self.report({'INFO'}, f"Exported {n_exported} objects to FBX")
+            case _:
+                self.report({'WARNING'}, f"Unhandled mesh mode: {props.mesh_mode}")
+                return {'CANCELLED'}
+
 
         su.unselect_all()
         su.select_objects(original_selected)
