@@ -11,6 +11,7 @@ Vector = mathutils.Vector
 
 from .selection_utils import *
 from . import orientation_utils as ou
+from . import export_utils as ex
 
 class PrintHelloOperator(bpy.types.Operator):
     bl_idname = "ntb.print_hello"
@@ -27,19 +28,6 @@ class ReloadScriptsOperator(bpy.types.Operator):
     def execute(self, context: bpy.types.Context):
         bpy.ops.script.reload()
         return {'FINISHED'}
-
-def get_export_dir() -> str:
-    blend_file_path = bpy.data.filepath
-    blend_dir = os.path.dirname(blend_file_path)
-    os.makedirs(blend_dir, exist_ok=True)
-    return blend_dir
-
-def make_fbx_name(x:str) -> str:
-    return f"SM_{x}.fbx"
-
-def make_combined_sm_name() -> str:
-    blend_name = Path(bpy.data.filepath).stem
-    return make_fbx_name(blend_name)
 
 class UnrealExportMeshesOperator(bpy.types.Operator):
     bl_idname = "ntb.unreal_export_meshes"
@@ -106,7 +94,7 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
         self.init_class_members()
 
         props: UnrealExportMeshesOperator.Settings = context.scene.unreal_export_meshes_settings
-        folder = get_export_dir()
+        folder = ex.get_export_dir()
 
         if context.mode != 'OBJECT':
             bpy.ops.object.mode_set(mode='OBJECT')
@@ -132,7 +120,7 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
             self.export_cleanup()
        
         def export_mesh_to_fbx(name:str) -> None:
-            file_name = make_fbx_name(name)
+            file_name = ex.make_fbx_name(name)
             file_path = get_file_path(file_name)
             run_fbx_export(file_path)
 
@@ -371,6 +359,41 @@ class AlignAroundCursorOperator(bpy.types.Operator):
             rotated = rotation_matrix @ translated
             pos = rotated + cursor
             obj.location = pos
+
+            match self.orientation:
+                case "Towards":
+                    ou.orientate_towards(obj, cursor - obj.location, self.orientation_fwd_up, self.orientation_offset)
+                case "Away":
+                    ou.orientate_towards(obj, obj.location - cursor, self.orientation_fwd_up, self.orientation_offset)
+                case "Source":
+                    pass
+                case _:
+                    self.report({'WARNING'}, f"Unhandled orientation: {self.orientation}")
+                    return {'CANCELLED'}
+
+        return {'FINISHED'}
+    
+class AlignTowardsCursorOperator(bpy.types.Operator):
+    bl_idname = "ntb.align_towards_cursor"
+    bl_label = "Align selected instances towards cursor"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context: bpy.types.Context) -> set[str]:
+        n_selected_objects = len(context.selected_objects)
+        if n_selected_objects < 1:
+            self.report({'WARNING'}, f"{n_selected_objects} selected objects.")
+            return {'CANCELLED'}
+    
+        self.props = cast(AlignAroundCursorOperator.Settings, context.scene.align_around_cursor_settings)
+        self.orientation = cast(str, self.props.orientation)
+        self.orientation_fwd_up = cast(tuple[str,str], (self.props.orientation_fwd, self.props.orientation_up))
+        self.orientation_offset = cast(Vector, self.props.orientation_offset)
+
+        cursor = context.scene.cursor.location
+        self.ref_obj = context.selected_objects[0]
+
+        for i in range(n_selected_objects):
+            obj = context.selected_objects[i]
 
             match self.orientation:
                 case "Towards":

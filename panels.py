@@ -80,6 +80,7 @@ class NPanel(bpy.types.Panel):
 
         align_around_box = self.layout.box()
         ro(align_around_box, ops.AlignAroundCursorOperator)
+        ro(align_around_box, ops.AlignTowardsCursorOperator)
         align_around_props: ops.AlignAroundCursorOperator.Settings = context.scene.align_around_cursor_settings
         self.split_props(align_around_box, align_around_props)
 

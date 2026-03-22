@@ -15,6 +15,7 @@ from . import registration
 from . import key_mapping
 from . import selection_utils
 from . import orientation_utils
+from . import export_utils
 
 modules: tuple[ModuleType] = (
     ops, 
@@ -22,7 +23,8 @@ modules: tuple[ModuleType] = (
     registration,
     key_mapping,
     selection_utils,
-    orientation_utils
+    orientation_utils,
+    export_utils
 )
 
 if "bpy" in locals():
@@ -37,6 +39,7 @@ classes_to_register = (
     ops.DuplicateAroundCursorOperator.Settings,
     ops.AlignAroundCursorOperator,
     ops.AlignAroundCursorOperator.Settings,
+    ops.AlignTowardsCursorOperator,
     ops.ReloadScriptsOperator,
     panels.NPanel,
     panels.MenuBar
