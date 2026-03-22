@@ -193,6 +193,12 @@ class DuplicateAroundCursorOperator(bpy.types.Operator):
             ],
             default='CentreXY'
         ) # type: ignore
+        orientation_fwd_up: bpy.props.StringProperty(
+            name="Orientation Forward/Up",
+            description="The forward and up axes for alignment.",
+            default="XZ",
+            maxlen=2
+        ) # type: ignore
 
     def execute(self, context: bpy.types.Context):
         n_selected_objects = len(context.selected_objects)
@@ -212,6 +218,12 @@ class DuplicateAroundCursorOperator(bpy.types.Operator):
         self.positioning_mode = cast(float, self.props.positioning_mode)
         self.orientation = cast(str, self.props.orientation)
         self.apply_transforms = cast(bool, self.props.apply_transforms)
+        self.orientation_fwd_up = cast(str, self.props.orientation_fwd_up)
+
+        len_orientation_fwd_up = len(self.orientation_fwd_up)
+        if len_orientation_fwd_up != 2:
+            self.report({'WARNING'}, f"Orientation fwd/up must be 2 chars (got {len_orientation_fwd_up}")
+            return {'CANCELLED'}
 
         self.ring_objects: list[bpy.types.Object] = []
 
@@ -264,7 +276,7 @@ class DuplicateAroundCursorOperator(bpy.types.Operator):
             match self.orientation:
                 case "CentreXY":
                     direction = (cursor - obj.location)
-                    rot = direction.to_track_quat('-Z', 'Y')
+                    rot = direction.to_track_quat(self.orientation_fwd_up[0], self.orientation_fwd_up[1])
                     obj.rotation_euler = rot.to_euler()
                 case "Source":
                     pass
