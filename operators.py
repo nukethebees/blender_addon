@@ -6,6 +6,7 @@ from typing import cast
 
 import bpy
 BpyObject = bpy.types.Object
+BpyContext = bpy.types.Context
 
 import mathutils
 
@@ -19,7 +20,7 @@ class PrintHelloOperator(bpy.types.Operator):
     bl_idname = "ntb.print_hello"
     bl_label = "Print Hello"
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: BpyContext):
         print("Hello, world!")
         return {'FINISHED'}
     
@@ -27,7 +28,7 @@ class ReloadScriptsOperator(bpy.types.Operator):
     bl_idname = "ntb.reload_scripts"
     bl_label = "Reload Scripts"
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: BpyContext):
         bpy.ops.script.reload()
         return {'FINISHED'}
 
@@ -43,15 +44,32 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
             items=[
                 ('Combine', "Combine", "Combine meshes as one"),
                 ('Separate', "Separate", "Export meshes separately"),
+                ('NewSeparate', "NewSeparate", "Export meshes separately"),
             ],
             default='Combine'
         ) # type: ignore
+        remove_copies: bpy.props.BoolProperty(
+            name="Remove copies",
+            default=True,
+            description="Remove temporary copies after exporting"
+        ) # type: ignore
+        debug_mode: bpy.props.BoolProperty(
+            name="Debug mode",
+            default=False,
+            description="Enable debug mode"
+        ) # type: ignore
 
-    def init_class_members(self) -> None:
+    def init_class_members(self, context: BpyContext) -> None:
+        self.props = cast(UnrealExportMeshesOperator.Settings, context.scene.unreal_export_meshes_settings)
+
+        self.original_objects: list[BpyObject] = list(context.scene.objects)
         self.empty_scales = {}
         self.to_remove: list[BpyObject] = []
         self.folder:str = ex.get_export_dir()
-        self.copied_objects: list[BpyObject] = []
+        self.export_objects: list[BpyObject] = []
+
+        self.export_prefix = ""
+        self.original_prefix = "ORIGINAL_"
 
     def shrink_empty_scales(self, context) -> None:
         self.empty_scales = {}
@@ -64,21 +82,25 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
         for name, scale in self.empty_scales.items():
             bpy.data.objects[name].scale = scale
 
-    def export_cleanup(self) -> None:
+    def export_cleanup(self, context: BpyContext) -> None:
         self.restore_empty_scales()
 
         for obj in self.to_remove:
-            bpy.data.objects.remove(obj, do_unlink=True)
+            if obj:
+                bpy.data.objects.remove(obj, do_unlink=True)
+        for obj in self.export_objects:
+            if obj:
+                bpy.data.objects.remove(obj, do_unlink=True)      
 
     def get_file_path(self, file_name:str) -> str:
         return os.path.join(self.folder, file_name)
 
-    def export_mesh_to_fbx(self, context: bpy.types.Context, name:str) -> None:
+    def export_mesh_to_fbx(self, context: BpyContext, name:str) -> None:
         file_name = ex.make_fbx_name(name)
         file_path = self.get_file_path(file_name)
         self.run_fbx_export(context, file_path)
 
-    def run_fbx_export(self, context: bpy.types.Context, file_path: str):
+    def run_fbx_export(self, context: BpyContext, file_path: str):
         self.shrink_empty_scales(context)
 
         try:
@@ -93,24 +115,42 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
             )
         except:
             pass
+
+    def add_prefix_original_objects(self):
+        for obj in self.original_objects:
+            obj.name = f"{self.original_prefix}{obj.name}"
+    def remove_prefix_original_objects(self):
+        if not self.props.remove_copies:
+            for obj in self.export_objects:
+                obj.name = f"EXPORTED_{obj.name}"
+
+        for obj in self.original_objects:
+            obj.name = obj.name.removeprefix(self.original_prefix)
+
+    def copy_all_mesh_objects(self, context: BpyContext):
+        scene_objects = list(o for o in context.scene.objects if o.parent is None)
+        d = ex.Duplicator(context, 
+                          self.export_prefix, 
+                          self.original_prefix, 
+                          debug_mode=self.props.debug_mode)
+
+        for obj in scene_objects:
+            new_obj = d.duplicate_hierarchy(obj)
+            #self.export_objects.append(new_obj)
         
-        self.export_cleanup()
+        self.export_objects = d.new_objects
 
-    def copy_all_mesh_objects(self):
-        pass
-
-    def execute(self, context: bpy.types.Context) -> set[str]:
-        self.init_class_members()
-
-        props = cast(UnrealExportMeshesOperator.Settings, context.scene.unreal_export_meshes_settings)
+    def execute(self, context: BpyContext) -> set[str]:
+        self.init_class_members(context)
         
         original_mode = context.mode
         original_selected = context.selected_objects
         original_active = bpy.context.view_layer.objects.active
 
-        bpy.ops.object.mode_set(mode='OBJECT')
+        if context.active_object:
+            bpy.ops.object.mode_set(mode='OBJECT')
 
-        match props.mesh_mode:
+        match self.props.mesh_mode:
             case "Combine": 
                 su.select_all_meshes_only(context)
                 self.export_mesh_to_fbx(context, Path(bpy.data.filepath).stem)
@@ -123,16 +163,30 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
                     n_exported += 1
 
                 self.report({'INFO'}, f"Exported {n_exported} objects to FBX")
+            case "NewSeparate":
+                n_exported = 0
+                self.copy_all_mesh_objects(context)
+                for obj in (o for o in self.export_objects if o.type == "MESH"):
+                    su.select_hierarchy(obj)
+                    name = obj.name
+                    self.export_mesh_to_fbx(context, name)
+                    if self.props.debug_mode:
+                        print(f"Exported: {name} (type: {obj.type})")
+                    n_exported += 1
+                self.report({'INFO'}, f"Exported {n_exported} objects to FBX")
             case _:
-                self.report({'WARNING'}, f"Unhandled mesh mode: {props.mesh_mode}")
+                self.report({'WARNING'}, f"Unhandled mesh mode: {self.props.mesh_mode}")
                 return {'CANCELLED'}
-
-
+        
+        if self.props.remove_copies:
+            self.export_cleanup(context)
+        self.remove_prefix_original_objects()
         su.unselect_all()
         su.select_objects(original_selected)
         if original_active is not None:
             bpy.context.view_layer.objects.active = original_active
-        bpy.ops.object.mode_set(mode=original_mode)
+        if context.active_object:
+            bpy.ops.object.mode_set(mode=original_mode)
 
         return {'FINISHED'}
     
@@ -220,14 +274,14 @@ class DuplicateAroundCursorOperator(bpy.types.Operator):
     def orientate_towards(self, obj:BpyObject, direction:Vector) -> None:
         return ou.orientate_towards(obj, direction, (self.orientation_fwd, self.orientation_up), self.orientation_offset)
 
-    def apply_transforms(self, context: bpy.types.Context):
+    def apply_transforms(self, context: BpyContext):
         bpy.ops.object.select_all(action='DESELECT')
         for o in self.ring_objects:
             o.select_set(True)
         context.view_layer.objects.active = self.ring_objects[0]
         bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
 
-    def execute(self, context: bpy.types.Context) -> set[str]:
+    def execute(self, context: BpyContext) -> set[str]:
         n_selected_objects = len(context.selected_objects)
         if n_selected_objects != 1:
             self.report({'WARNING'}, f"{n_selected_objects} selected objects. Only 1 allowed")
@@ -328,7 +382,7 @@ class AlignAroundCursorOperator(bpy.types.Operator):
         orientation_up: PropFactory.orientation_up() # type: ignore
         orientation_offset: PropFactory.orientation_offset() # type: ignore
 
-    def execute(self, context: bpy.types.Context) -> set[str]:
+    def execute(self, context: BpyContext) -> set[str]:
         n_selected_objects = len(context.selected_objects)
         if n_selected_objects < 1:
             self.report({'WARNING'}, f"{n_selected_objects} selected objects.")
@@ -375,7 +429,7 @@ class AlignTowardsCursorOperator(bpy.types.Operator):
     bl_label = "Align selected instances towards cursor"
     bl_options = {'REGISTER', 'UNDO'}
 
-    def execute(self, context: bpy.types.Context) -> set[str]:
+    def execute(self, context: BpyContext) -> set[str]:
         n_selected_objects = len(context.selected_objects)
         if n_selected_objects < 1:
             self.report({'WARNING'}, f"{n_selected_objects} selected objects.")

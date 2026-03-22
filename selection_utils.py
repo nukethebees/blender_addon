@@ -6,6 +6,8 @@ def select_objects(objs: Iterable[bpy.types.Object]) -> None:
     first=True
 
     for obj in objs:
+        if not obj:
+            continue
         obj.select_set(True)
         if first:
             bpy.context.view_layer.objects.active = obj
