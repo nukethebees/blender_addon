@@ -9,7 +9,7 @@ import mathutils
 
 Vector = mathutils.Vector
 
-from .selection_utils import *
+from . import selection_utils as su
 from . import orientation_utils as ou
 from . import export_utils as ex
 
@@ -48,6 +48,7 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
     def init_class_members(self) -> None:
         self.empty_scales = {}
         self.to_remove = []
+        self.folder = ex.get_export_dir()
 
     def shrink_empty_scales(self, context) -> None:
         self.empty_scales = {}
@@ -66,53 +67,62 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
         for obj in self.to_remove:
             bpy.data.objects.remove(obj, do_unlink=True)
 
-    def execute(self, context: bpy.types.Context):
+    def get_file_path(self, file_name:str) -> str:
+        return os.path.join(self.folder, file_name)
+
+    def export_mesh_to_fbx(self, context: bpy.types.Context, name:str) -> None:
+        file_name = ex.make_fbx_name(name)
+        file_path = self.get_file_path(file_name)
+        self.run_fbx_export(context, file_path)
+
+    def run_fbx_export(self, context: bpy.types.Context, file_path: str):
+        self.shrink_empty_scales(context)
+
+        try:
+            bpy.ops.export_scene.fbx(
+                filepath=file_path,
+                apply_unit_scale=True,
+                object_types={'MESH', 'EMPTY'},
+                axis_forward='X',
+                axis_up='Z',
+                mesh_smooth_type='SMOOTH_GROUP',
+                use_selection=True
+            )
+        except:
+            pass
+        
+        self.export_cleanup()
+
+    def execute(self, context: bpy.types.Context) -> set[str]:
         self.init_class_members()
 
-        props: UnrealExportMeshesOperator.Settings = context.scene.unreal_export_meshes_settings
-        folder = ex.get_export_dir()
+        props = cast(UnrealExportMeshesOperator.Settings, context.scene.unreal_export_meshes_settings)
+        
+        original_mode = context.mode
+        original_selected = context.selected_objects
+        original_active = bpy.context.view_layer.objects.active
 
-        if context.mode != 'OBJECT':
-            bpy.ops.object.mode_set(mode='OBJECT')
-
-        def get_file_path(file_name:str) -> str:
-            return os.path.join(folder, file_name)
-        def run_fbx_export(file_path: str):
-            self.shrink_empty_scales(context)
-
-            try:
-                bpy.ops.export_scene.fbx(
-                    filepath=file_path,
-                    apply_unit_scale=True,
-                    object_types={'MESH', 'EMPTY'},
-                    axis_forward='X',
-                    axis_up='Z',
-                    mesh_smooth_type='SMOOTH_GROUP',
-                    use_selection=True
-                )
-            except:
-                pass
-            
-            self.export_cleanup()
-       
-        def export_mesh_to_fbx(name:str) -> None:
-            file_name = ex.make_fbx_name(name)
-            file_path = get_file_path(file_name)
-            run_fbx_export(file_path)
+        bpy.ops.object.mode_set(mode='OBJECT')
 
         if (props.mesh_mode == "Combine"): 
-            select_all_meshes_only(context)
-            export_mesh_to_fbx(Path(bpy.data.filepath).stem)
+            su.select_all_meshes_only(context)
+            self.export_mesh_to_fbx(context, Path(bpy.data.filepath).stem)
             self.report({'INFO'}, f"Exported to FBX")
         else:
             n_exported = 0
-            for obj in get_all_meshes(context):
-                select_hierarchy(obj)
-                export_mesh_to_fbx(obj.name)
+            for obj in su.get_all_meshes(context):
+                su.select_hierarchy(obj)
+                self.export_mesh_to_fbx(context, obj.name)
                 n_exported += 1
 
             self.report({'INFO'}, f"Exported {n_exported} objects to FBX")
-        unselect_all()
+
+        su.unselect_all()
+        su.select_objects(original_selected)
+        if original_active is not None:
+            bpy.context.view_layer.objects.active = original_active
+        bpy.ops.object.mode_set(mode=original_mode)
+
         return {'FINISHED'}
     
 class PropFactory:
