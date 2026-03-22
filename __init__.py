@@ -14,13 +14,15 @@ from . import panels
 from . import registration
 from . import key_mapping
 from . import selection_utils
+from . import orientation_utils
 
 modules: tuple[ModuleType] = (
     ops, 
     panels, 
     registration,
     key_mapping,
-    selection_utils
+    selection_utils,
+    orientation_utils
 )
 
 if "bpy" in locals():
@@ -33,6 +35,8 @@ classes_to_register = (
     ops.UnrealExportMeshesOperator.Settings,
     ops.DuplicateAroundCursorOperator,
     ops.DuplicateAroundCursorOperator.Settings,
+    ops.AlignAroundCursorOperator,
+    ops.AlignAroundCursorOperator.Settings,
     ops.ReloadScriptsOperator,
     panels.NPanel,
     panels.MenuBar
@@ -59,6 +63,8 @@ def register():
         bpy.props.PointerProperty(type=ops.UnrealExportMeshesOperator.Settings)
     bpy.types.Scene.duplicate_around_cursor_settings = \
         bpy.props.PointerProperty(type=ops.DuplicateAroundCursorOperator.Settings)
+    bpy.types.Scene.align_around_cursor_settings = \
+        bpy.props.PointerProperty(type=ops.AlignAroundCursorOperator.Settings)
     
 def unregister():
     print(f"Unloading module: {bl_info['name']}")
@@ -75,6 +81,7 @@ def unregister():
 
     del bpy.types.Scene.unreal_export_meshes_settings
     del bpy.types.Scene.duplicate_around_cursor_settings
+    del bpy.types.Scene.align_around_cursor_settings
 
 if __name__ == "__main__":
     register()

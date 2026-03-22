@@ -10,6 +10,7 @@ import mathutils
 Vector = mathutils.Vector
 
 from .selection_utils import *
+from . import orientation_utils as ou
 
 class PrintHelloOperator(bpy.types.Operator):
     bl_idname = "ntb.print_hello"
@@ -214,13 +215,7 @@ class DuplicateAroundCursorOperator(bpy.types.Operator):
         ) # type: ignore
 
     def orientate_towards(self, obj:bpy.types.Object, direction:Vector) -> None:
-        rot = direction.to_track_quat(self.orientation_fwd, self.orientation_up)
-        obj.rotation_euler = rot.to_euler()
-
-        offset = Vector(math.radians(d) for d in self.orientation_offset)
-        obj.rotation_euler.x += offset.x
-        obj.rotation_euler.y += offset.y
-        obj.rotation_euler.z += offset.z
+        return ou.orientate_towards(obj, direction, (self.orientation_fwd, self.orientation_up), self.orientation_offset)
 
     def apply_transforms(self, context: bpy.types.Context):
         bpy.ops.object.select_all(action='DESELECT')
@@ -316,5 +311,81 @@ class DuplicateAroundCursorOperator(bpy.types.Operator):
 
         if self.should_apply_transforms:
             self.apply_transforms(context)
+
+        return {'FINISHED'}
+    
+class AlignAroundCursorOperator(bpy.types.Operator):
+    bl_idname = "ntb.align_around_cursor"
+    bl_label = "Align selected instances around cursor"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    class Settings(bpy.types.PropertyGroup):
+        angle_offset: bpy.props.FloatProperty(
+            name="Angle offset",
+            default=0.0,
+            description="Angle offset"
+        ) # type: ignore
+        orientation: bpy.props.EnumProperty(
+            name="Orientation",
+            description="Alignment orientation",
+            items=[
+                ('Towards', "Towards", "Towards cursor"),
+                ('Away', "Away", "Away from cursor"),
+            ],
+            default='Towards'
+        ) # type: ignore
+        orientation_fwd: bpy.props.StringProperty(
+            name="Orientation Forward",
+            description="The forward axis for alignment.",
+            default="X"
+        ) # type: ignore
+        orientation_up: bpy.props.StringProperty(
+            name="Orientation up",
+            description="The up axis for alignment.",
+            default="Z"
+        ) # type: ignore
+        orientation_offset: bpy.props.FloatVectorProperty(
+            name="Orientation offset",
+            description="Orientation offset (degrees)",
+            default=Vector()
+        ) # type: ignore
+
+    def execute(self, context: bpy.types.Context) -> set[str]:
+        n_selected_objects = len(context.selected_objects)
+        if n_selected_objects < 1:
+            self.report({'WARNING'}, f"{n_selected_objects} selected objects.")
+            return {'CANCELLED'}
+    
+        self.props = cast(AlignAroundCursorOperator.Settings, context.scene.align_around_cursor_settings)
+        self.angle_offset = cast(float, self.props.angle_offset)
+        self.orientation = cast(str, self.props.orientation)
+        self.orientation_fwd = cast(str, self.props.orientation_fwd)
+        self.orientation_up = cast(str, self.props.orientation_up)
+        self.orientation_fwd_up = (self.orientation_fwd, self.orientation_up)
+        self.orientation_offset = cast(Vector, self.props.orientation_offset)
+
+
+        cursor = context.scene.cursor.location
+        self.angle_step = 2 * math.pi / n_selected_objects
+        self.ref_obj = context.selected_objects[0]
+
+        for i in range(n_selected_objects):
+            obj = context.selected_objects[i]
+            angle = (i * self.angle_step) + self.angle_offset
+
+            translated = self.ref_obj.location - cursor
+            rotation_matrix = mathutils.Matrix.Rotation(angle, 3, 'Z')
+            rotated = rotation_matrix @ translated
+            pos = rotated + cursor
+            obj.location = pos
+
+            match self.orientation:
+                case "Towards":
+                    ou.orientate_towards(obj, cursor - obj.location, self.orientation_fwd_up, self.orientation_offset)
+                case "Away":
+                    ou.orientate_towards(obj, obj.location - cursor, self.orientation_fwd_up, self.orientation_offset)
+                case _:
+                    self.report({'WARNING'}, f"Unhandled orientation: {self.orientation}")
+                    return {'CANCELLED'}
 
         return {'FINISHED'}

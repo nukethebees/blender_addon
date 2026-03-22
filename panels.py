@@ -78,6 +78,11 @@ class NPanel(bpy.types.Panel):
         orientation_row.prop(dupe_around_props, "orientation_fwd", text="")
         orientation_row.prop(dupe_around_props, "orientation_up", text="")
 
+        align_around_box = self.layout.box()
+        ro(align_around_box, ops.AlignAroundCursorOperator)
+        align_around_props: ops.AlignAroundCursorOperator.Settings = context.scene.align_around_cursor_settings
+        self.split_props(align_around_box, align_around_props)
+
 class MenuBar(bpy.types.Menu):
     bl_label = "NukeTheBees"
     bl_idname = "NTB_MT_MenuBar"
