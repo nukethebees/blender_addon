@@ -364,6 +364,7 @@ class AlignAroundCursorOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     class Settings(bpy.types.PropertyGroup):
+        angle_offset: PropFactory.angle_offset()  # type: ignore
         orientation: PropFactory.orientation() # type: ignore
         orientation_fwd: PropFactory.orientation_fwd() # type: ignore
         orientation_up: PropFactory.orientation_up() # type: ignore
