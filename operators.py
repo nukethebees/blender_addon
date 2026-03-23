@@ -53,6 +53,11 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
             default=True,
             description="Remove temporary copies after exporting"
         ) # type: ignore
+        unreal_mode: bpy.props.BoolProperty(
+            name="Unreal mode",
+            default=True,
+            description="Adjust export for the Unreal engine"
+        ) # type: ignore
         debug_mode: bpy.props.BoolProperty(
             name="Debug mode",
             default=False,
@@ -142,6 +147,10 @@ class UnrealExportMeshesOperator(bpy.types.Operator):
                 self.copy_all_mesh_objects(context)
                 for obj in (o for o in self.export_objects if o.type == "EMPTY"):
                     obj.scale = (0.01, 0.01, 0.01)
+
+                    if self.props.unreal_mode:
+                        obj.rotation_euler.y += math.radians(90)
+
 
                 for obj in (o for o in self.export_objects if o.type == "MESH"):
                     su.select_hierarchy(obj)
